@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block title %}Товары — BoxCRM{% endblock %}
+
+{% block content %}
+<div class="page-head d-flex flex-wrap justify-content-between align-items-end gap-3">
+  <div>
+    <h1 class="h3 mb-1">Товары</h1>
+    <p class="text-muted mb-0">
+      <span id="stat-count">{{ products_count }}</span> позиций ·
+      <span id="stat-units">{{ total_units }}</span> шт ·
+      <span id="stat-value">{{ total_value|floatformat:"2g" }}</span> ₽
+    </p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <form class="search" method="get" action="{% url 'shop:product_list' %}" role="search">
+      <input class="form-control" type="search" name="q" value="{{ query }}"
+             placeholder="Поиск по названию…" aria-label="Поиск по названию">
+      <button class="btn btn-outline-secondary" type="submit">Найти</button>
+    </form>
+
+    <a class="btn btn-outline-secondary" href="{% url 'shop:export_products' %}">Экспорт в Excel</a>
+    {% if is_owner %}
+      <a class="btn btn-outline-secondary" href="{% url 'shop:import_products' %}">Импорт из Excel</a>
+      <a class="btn btn-outline-secondary" href="{% url 'shop:export_template' %}"
+         title="Пустой шаблон Excel для заполнения">Скачать шаблон Excel</a>
+      <a class="btn btn-primary" href="{% url 'shop:product_add' %}">+ Добавить товар</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 products-table">
+      <thead>
+        <tr>
+          <th scope="col">Товар</th>
+          <th scope="col" class="text-end">Цена</th>
+          {% if is_owner %}<th scope="col" class="text-end">Закупка</th>{% endif %}
+          <th scope="col" class="text-end">Количество</th>
+          <th scope="col">Статус</th>
+          <th scope="col" class="text-end">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="products-tbody"
+             data-empty-message="{% if query %}Ничего не найдено — измените запрос.{% else %}Товаров пока нет — добавьте первый.{% endif %}">
+        {% for product in products %}
+          <tr class="row-{{ product.status }}" data-product-id="{{ product.pk }}">
+            <td data-label="Товар">
+              <span class="product-name">{{ product.name }}</span>
+            </td>
+            <td class="text-end price" data-label="Цена">
+              <span class="price-value">{{ product.price|floatformat:"2g" }}</span> ₽
+            </td>
+            {% if is_owner %}
+              <td class="text-end purchase" data-label="Закупка">
+                <span class="purchase-value">{{ product.purchase_price|floatformat:"2g" }}</span> ₽
+              </td>
+            {% endif %}
+            <td class="text-end qty" data-label="Количество">
+              <span class="qty-value">{{ product.quantity }}</span> шт
+            </td>
+            <td data-label="Статус">
+              <span class="badge badge-{{ product.status }}">{{ product.status_label }}</span>
+            </td>
+            <td class="text-end" data-label="Действия">
+              <div class="row-actions">
+                <button class="btn btn-sm btn-sell {% if product.quantity == 0 %}btn-sell--out{% endif %}"
+                        type="button"
+                        data-bs-toggle="modal" data-bs-target="#sellModal"
+                        data-product-id="{{ product.pk }}"
+                        data-product-name="{{ product.name }}"
+                        data-product-qty="{{ product.quantity }}"
+                        data-product-price="{{ product.price|unlocalize }}"
+                        data-sell-url="{% url 'shop:product_sell' product.pk %}"
+                        title="{% if product.quantity == 0 %}Товар закончился — сначала оформите приход{% else %}Продать{% endif %}">
+                  Продать
+                </button>
+
+                <button class="btn btn-sm btn-outline-primary" type="button"
+                        data-bs-toggle="modal" data-bs-target="#arrivalModal"
+                        data-product-id="{{ product.pk }}"
+                        data-product-name="{{ product.name }}"
+                        data-product-qty="{{ product.quantity }}">
+                  Привезти
+                </button>
+
+                {% if is_owner %}
+                  <button class="btn btn-sm btn-outline-danger" type="button"
+                          data-bs-toggle="modal" data-bs-target="#writeoffModal"
+                          data-product-id="{{ product.pk }}"
+                          data-product-name="{{ product.name }}"
+                          data-product-qty="{{ product.quantity }}">
+                    Списать
+                  </button>
+
+                  <button class="btn btn-emoji" type="button"
+                          title="Редактировать" aria-label="Редактировать {{ product.name }}"
+                          data-bs-toggle="modal" data-bs-target="#editModal"
+                          data-product-id="{{ product.pk }}"
+                          data-product-name="{{ product.name }}"
+                          data-product-price="{{ product.price|unlocalize }}"
+                          data-product-purchase="{{ product.purchase_price|unlocalize }}"
+                          data-edit-url="{% url 'shop:product_edit' product.pk %}">✏️</button>
+                  <button class="btn btn-emoji btn-emoji--danger" type="button"
+                          title="Удалить" aria-label="Удалить {{ product.name }}"
+                          data-bs-toggle="modal" data-bs-target="#deleteModal"
+                          data-product-id="{{ product.pk }}"
+                          data-product-name="{{ product.name }}"
+                          data-delete-url="{% url 'shop:product_delete' product.pk %}">🗑️</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr class="empty-row">
+            <td colspan="{% if is_owner %}6{% else %}5{% endif %}" class="text-center text-muted py-5">
+              {% if query %}Ничего не найдено — измените запрос.{% else %}Товаров пока нет — добавьте первый.{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Продажа -->
+<div class="modal fade" id="sellModal" tabindex="-1" aria-labelledby="sellTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 rounded-4">
+      <form id="sell-form" method="post" action="" data-ajax-form="sell" novalidate>
+        {% csrf_token %}
+        <div class="modal-header border-0">
+          <h2 class="modal-title h5" id="sellTitle">Продажа товара</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-3" id="sell-product-info"></p>
+
+          <div class="alert alert-warning py-2 px-3 mb-3 d-none" id="sell-stock-warning" role="alert">
+            Товара нет на складе — сначала оформите приход.
+          </div>
+
+          <label class="form-label" for="sell-quantity">Количество, шт</label>
+          <input class="form-control" id="sell-quantity" name="quantity" type="number"
+                 min="1" step="1" value="1" inputmode="numeric" required>
+          <div class="invalid-feedback d-block" id="sell-quantity-error"
+               data-field-error="quantity"></div>
+
+          <fieldset class="payment-fieldset mt-3">
+            <legend class="form-label mb-2">Способ оплаты</legend>
+            <div class="payment-options">
+              {% for value, label in payment_choices %}
+                <label class="payment-option">
+                  <input type="radio" name="payment_method" value="{{ value }}"
+                         {% if value == 'cash' %}checked{% endif %}>
+                  <span class="payment-option__label">{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <div class="invalid-feedback d-block" id="sell-form-error" data-form-error></div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Подтвердить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Приход -->
+<div class="modal fade" id="arrivalModal" tabindex="-1" aria-labelledby="arrivalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 rounded-4">
+      <form method="post" action="{% url 'shop:product_arrive' %}">
+        {% csrf_token %}
+        <input type="hidden" name="product_id" id="arrival-product-id">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header border-0">
+          <h2 class="modal-title h5" id="arrivalTitle">Привезти товар</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-3" id="arrival-product-name"></p>
+          <label class="form-label" for="arrival-quantity">Количество, шт</label>
+          <input class="form-control" id="arrival-quantity" name="quantity" type="number"
+                 min="1" max="100000" step="1" value="10" required>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if is_owner %}
+  <!-- Редактирование -->
+  <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 rounded-4">
+        <form id="edit-form" method="post" action="" data-ajax-form="edit" novalidate>
+          {% csrf_token %}
+          <div class="modal-header border-0">
+            <h2 class="modal-title h5" id="editTitle">Редактировать товар</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label" for="edit-name">Название</label>
+              <input class="form-control" id="edit-name" name="name" type="text" maxlength="200" required>
+              <div class="invalid-feedback d-block" id="edit-name-error"
+                   data-field-error="name"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="edit-price">Цена, ₽</label>
+              <input class="form-control" id="edit-price" name="price" type="number"
+                     step="0.01" min="0" required>
+              <div class="invalid-feedback d-block" id="edit-price-error"
+                   data-field-error="price"></div>
+            </div>
+            <div class="mb-0">
+              <label class="form-label" for="edit-purchase">Закупка, ₽</label>
+              <input class="form-control" id="edit-purchase" name="purchase_price" type="number"
+                     step="0.01" min="0" required>
+              <div class="invalid-feedback d-block" id="edit-purchase_price-error"
+                   data-field-error="purchase_price"></div>
+            </div>
+            <div class="invalid-feedback d-block mt-2" id="edit-form-error" data-form-error></div>
+            <p class="text-muted small mb-0 mt-3">
+              Количество меняется через «Привезти» и «Списать», чтобы не потерять историю.
+            </p>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Удаление -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 rounded-4">
+        <form id="delete-form" method="post" action="" data-ajax-form="delete" novalidate>
+          {% csrf_token %}
+          <div class="modal-header border-0">
+            <h2 class="modal-title h5" id="deleteTitle">Удалить товар</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0">
+              Вы уверены, что хотите удалить <strong id="delete-product-name"></strong>?
+            </p>
+            <div class="invalid-feedback d-block mt-2" id="delete-form-error" data-form-error></div>
+            <p class="text-muted small mb-0 mt-3">
+              Записи журнала по этому товару останутся: история сохраняется.
+            </p>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-danger">Да, удалить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Списание -->
+  <div class="modal fade" id="writeoffModal" tabindex="-1" aria-labelledby="writeoffTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 rounded-4">
+        <form method="post" action="{% url 'shop:product_writeoff' %}">
+          {% csrf_token %}
+          <input type="hidden" name="product_id" id="writeoff-product-id">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div class="modal-header border-0">
+            <h2 class="modal-title h5" id="writeoffTitle">Списать товар</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted mb-3" id="writeoff-product-name"></p>
+            <label class="form-label" for="writeoff-quantity">Количество, шт</label>
+            <input class="form-control mb-3" id="writeoff-quantity" name="quantity" type="number"
+                   min="1" step="1" value="1" required>
+            <label class="form-label" for="writeoff-reason">Причина</label>
+            <select class="form-select" id="writeoff-reason" name="reason" required>
+              <option value="">Выберите причину</option>
+              {% for value, label in reason_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <label class="form-label mt-3" for="writeoff-responsible">Ответственный сотрудник</label>
+            <select class="form-select" id="writeoff-responsible" name="responsible">
+              <option value="">Не указан — недостача числится за вами</option>
+              {% for staff in staff_options %}
+                <option value="{{ staff.pk }}">
+                  {{ staff.get_username }}{% if staff.is_superuser %} (владелец){% else %} (продавец){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-danger">Списать</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

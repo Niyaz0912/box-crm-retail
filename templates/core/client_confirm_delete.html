@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Удалить клиента — BoxCRM{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="h3 mb-0">Удалить клиента?</h1>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 form-card">
+  <div class="card-body p-4">
+    <p class="mb-4">
+      Клиент <strong>{{ client.name }}</strong> ({{ client.phone }}) будет удалён.
+    </p>
+
+    <form method="post" class="d-flex gap-2">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit">Удалить</button>
+      <a class="btn btn-outline-secondary" href="{% url 'core:client_list' %}">Отмена</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

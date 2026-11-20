@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Импорт из Excel — BoxCRM{% endblock %}
+
+{% block content %}
+<div class="page-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <h1 class="h3 mb-0">Импорт из Excel</h1>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'shop:export_template' %}">Скачать шаблон Excel</a>
+    <a class="btn btn-outline-secondary" href="{% url 'shop:product_list' %}">Назад к товарам</a>
+  </div>
+</div>
+
+{% if result %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h5 mb-3">Результат импорта</h2>
+      <div class="import-summary">
+        <span class="import-chip">Всего строк: {{ result.total }}</span>
+        <span class="import-chip import-chip--ok">Создано: {{ result.created }}</span>
+        <span class="import-chip import-chip--info">Обновлено: {{ result.updated }}</span>
+        <span class="import-chip import-chip--warn">Пропущено: {{ result.skipped }}</span>
+      </div>
+
+      {% if result.skipped_rows %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle import-report-table mb-3">
+            <thead>
+              <tr>
+                <th scope="col">Строка</th>
+                <th scope="col">Товар</th>
+                <th scope="col">Причина пропуска</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in result.skipped_rows %}
+                <tr>
+                  <td>{{ row.row }}</td>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.reason }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if result.skipped > result.skipped_rows|length %}
+          <p class="text-muted small">
+            Показаны первые {{ result.skipped_rows|length }} из {{ result.skipped }} пропущенных строк.
+          </p>
+        {% endif %}
+      {% else %}
+        <p class="text-muted mb-3">Все строки обработаны без ошибок.</p>
+      {% endif %}
+
+      <a class="btn btn-primary" href="{% url 'shop:product_list' %}">Перейти к товарам</a>
+    </div>
+  </div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body p-4">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="form-label" for="excel-file">Файл .xlsx</label>
+          <input class="form-control mb-3" id="excel-file" type="file" name="file"
+                 accept=".xlsx" required>
+          <button class="btn btn-primary" type="submit">Загрузить и импортировать</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body p-4">
+        <h2 class="h6 text-uppercase text-muted mb-3">Как это работает</h2>
+        <ul class="import-rules mb-0">
+          <li>Колонки: <strong>Название</strong>, <strong>Цена</strong>, <strong>Закупка</strong>, <strong>Количество</strong>.</li>
+          <li>Читаются все строки листа (и лист с заголовками находится автоматически).</li>
+          <li>Если товар с таким названием уже есть — обновятся <strong>цена и закупка</strong>.</li>
+          <li>Количество у существующих товаров не меняется: защита от перезаписи остатков.</li>
+          <li>Если товара нет — он будет создан с количеством и закупкой из файла.</li>
+          <li>Закупка выше цены, пустое название или цена не числом — строка пропускается с причиной в отчёте.</li>
+          <li>Полностью пустые строки не считаются ошибкой.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

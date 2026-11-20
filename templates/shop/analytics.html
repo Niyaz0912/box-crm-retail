@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Аналитика — BoxCRM{% endblock %}
+
+{% block content %}
+<div class="page-head d-flex flex-wrap justify-content-between align-items-end gap-3">
+  <div>
+    <h1 class="h3 mb-1">Аналитика</h1>
+    <p class="text-muted mb-0">Продажи, прибыль и контроль за период: {{ period_label|lower }}</p>
+  </div>
+  <div class="filter-row">
+    {% for value, label in periods %}
+      <a class="filter-chip {% if period == value %}is-active{% endif %}"
+         href="?period={{ value }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<section class="analytics-section">
+  <h2 class="section-title">Финансы</h2>
+  <div class="metrics">
+    <article class="metric-card metric-card--accent">
+      <span class="metric-label">Выручка</span>
+      <span class="metric-value">{{ finance.revenue|floatformat:"2g" }} ₽</span>
+      <span class="metric-note">
+        Чеков: {{ finance.sales_count }} · {{ finance.units_sold }} шт ·
+        средний чек {{ finance.avg_check|floatformat:"2g" }} ₽
+      </span>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Прибыль</span>
+      <span class="metric-value {% if finance.profit < 0 %}is-negative{% endif %}">
+        {{ finance.profit|floatformat:"2g" }} ₽
+      </span>
+      <span class="metric-note">маржа {{ finance.margin|floatformat:1 }}% · закупка {{ finance.cost|floatformat:"2g" }} ₽</span>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Наличные</span>
+      <span class="metric-value metric-value--sm">{{ finance.cash.total|floatformat:"2g" }} ₽</span>
+      <span class="metric-note">Чеков: {{ finance.cash.count }}</span>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Безнал / Карта</span>
+      <span class="metric-value metric-value--sm">{{ finance.card.total|floatformat:"2g" }} ₽</span>
+      <span class="metric-note">Чеков: {{ finance.card.count }}</span>
+    </article>
+  </div>
+
+  {% if finance.other.count %}
+    <p class="analytics-hint">
+      Без способа оплаты: {{ finance.other.total|floatformat:"2g" }} ₽ · чеков: {{ finance.other.count }}.
+    </p>
+  {% endif %}
+  {% if finance.missing_purchase_count %}
+    <p class="analytics-hint analytics-hint--warn">
+      У {{ finance.missing_purchase_count }} проданных товаров не заполнена закупочная цена —
+      прибыль может быть завышена.
+    </p>
+  {% endif %}
+</section>
+
+<section class="analytics-section">
+  <h2 class="section-title">Товары</h2>
+  <div class="analytics-grid">
+    <div class="card analytics-card">
+      <div class="card-body">
+        <h3 class="card-title-sm">Топ-5 по продажам</h3>
+        {% if top_products %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle analytics-table mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Товар</th>
+                  <th scope="col" class="text-end">Продано</th>
+                  <th scope="col" class="text-end">Выручка</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in top_products %}
+                  <tr>
+                    <td>{{ row.name }}</td>
+                    <td class="text-end">{{ row.quantity }} шт</td>
+                    <td class="text-end">{{ row.revenue|floatformat:"2g" }} ₽</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="empty-note">За период продаж не было.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card analytics-card">
+      <div class="card-body">
+        <h3 class="card-title-sm">Топ-5 «мёртвых»</h3>
+        <p class="card-hint">Не продавались за период</p>
+        {% for product in dead_products %}
+          <div class="list-row">
+            <span class="list-row__name">{{ product.name }}</span>
+            <span class="list-row__value text-muted">{{ product.quantity }} шт</span>
+          </div>
+        {% empty %}
+          <p class="empty-note">Все товары продавались за период.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card analytics-card">
+      <div class="card-body">
+        <h3 class="card-title-sm">Скоро закончатся</h3>
+        <p class="card-hint">Остаток {{ low_stock_threshold }} шт и меньше</p>
+        {% for product in low_stock %}
+          <div class="list-row">
+            <span class="list-row__name">{{ product.name }}</span>
+            <span class="badge badge-low">{{ product.quantity }} шт</span>
+          </div>
+        {% empty %}
+          <p class="empty-note">Запасов достаточно.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="analytics-section">
+  <h2 class="section-title">Сотрудники</h2>
+  <div class="card analytics-card">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 analytics-table">
+        <thead>
+          <tr>
+            <th scope="col">Имя продавца</th>
+            <th scope="col" class="text-end">Сумма продаж</th>
+            <th scope="col" class="text-end">Количество чеков</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sellers %}
+            <tr>
+              <td>
+                <span class="role-tag {% if row.is_owner %}role-tag--owner{% endif %}">{{ row.name }}</span>
+              </td>
+              <td class="text-end">{{ row.amount|floatformat:"2g" }} ₽</td>
+              <td class="text-end">{{ row.checks }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3" class="text-center text-muted py-4">Продаж за период нет.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        {% if sellers %}
+          <tfoot>
+            <tr>
+              <td>Итого</td>
+              <td class="text-end">{{ sellers_total.amount|floatformat:"2g" }} ₽</td>
+              <td class="text-end">{{ sellers_total.checks }}</td>
+            </tr>
+          </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="analytics-section">
+  <h2 class="section-title">Контроль</h2>
+  {% if has_suspicious %}
+    <p class="analytics-hint analytics-hint--danger">
+      Есть подозрительные списания — проверьте подсвеченные строки.
+    </p>
+  {% endif %}
+  <div class="card analytics-card">
+    <div class="card-body pb-0">
+      <h3 class="card-title-sm">Подозрительные списания</h3>
+      <p class="card-hint">
+        Недостачи на сумму больше {{ shortage_limit|floatformat:"0g" }} ₽ за период подсвечиваются красным.
+        Недостача оценивается по закупочной цене, а если она не заполнена — по цене продажи.
+      </p>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 analytics-table">
+        <thead>
+          <tr>
+            <th scope="col">Продавец</th>
+            <th scope="col" class="text-end">Сумма недостач</th>
+            <th scope="col" class="text-end">Списаний</th>
+            <th scope="col" class="text-end">Штук</th>
+            <th scope="col">Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in shortages %}
+            <tr class="{% if row.suspicious %}row-suspicious{% endif %}">
+              <td>
+                <span class="role-tag {% if row.is_owner %}role-tag--owner{% endif %}">{{ row.name }}</span>
+              </td>
+              <td class="text-end fw-semibold">{{ row.amount|floatformat:"2g" }} ₽</td>
+              <td class="text-end">{{ row.count }}</td>
+              <td class="text-end">{{ row.units }}</td>
+              <td>
+                {% if row.suspicious %}
+                  <span class="badge badge-danger">Проверить</span>
+                {% else %}
+                  <span class="text-muted">в норме</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">
+                Списаний с причиной «Недостача» за период нет.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BoxCRM{% endblock %}</title>
+  <meta name="theme-color" content="#2b7de9">
+  <link rel="icon" type="image/png" href="{% static 'icon/boxcrm-favicon.png' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ asset_version }}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+  <div class="container">
+    <a class="navbar-brand" href="{% url 'shop:product_list' %}">
+      <img src="{% static 'icon/boxcrm-logo.png' %}" alt="BoxCRM"
+           class="brand-logo" width="114" height="38">
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+            aria-controls="mainNav" aria-expanded="false" aria-label="Меню">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNav">
+      {% if user.is_authenticated %}
+        {% with app=request.resolver_match.app_name name=request.resolver_match.url_name %}
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link {% if app == 'shop' and name != 'journal' and name != 'analytics' %}active{% endif %}"
+               href="{% url 'shop:product_list' %}">Товары</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if app == 'core' %}active{% endif %}"
+               href="{% url 'core:client_list' %}">Клиенты</a>
+          </li>
+          {% if is_owner %}
+            <li class="nav-item">
+              <a class="nav-link {% if name == 'journal' %}active{% endif %}"
+                 href="{% url 'shop:journal' %}">Журнал</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if name == 'analytics' %}active{% endif %}"
+                 href="{% url 'shop:analytics' %}">Аналитика</a>
+            </li>
+          {% endif %}
+        </ul>
+        {% endwith %}
+
+        <div class="d-flex align-items-center gap-2 flex-wrap user-area">
+          {% if can_switch_role %}
+            <form method="post" action="{% url 'switch_role' %}" class="role-switch"
+                  aria-label="Переключатель ролей">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" name="role" value="owner"
+                      class="role-btn {% if view_as == 'owner' %}is-active{% endif %}">Владелец</button>
+              <button type="submit" name="role" value="seller"
+                      class="role-btn {% if view_as == 'seller' %}is-active{% endif %}">Продавец</button>
+            </form>
+          {% endif %}
+
+          <span class="user-chip">
+            {{ user.get_username }}
+            {% if is_owner %}<span class="user-chip__role">владелец</span>
+            {% else %}<span class="user-chip__role">продавец</span>{% endif %}
+          </span>
+
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-secondary btn-sm" type="submit">Выйти</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <noscript>
+    <div class="alert alert-warning" role="alert">
+      Для работы модальных окон (продажа, редактирование, удаление) нужен JavaScript.
+      Включите его и обновите страницу.
+    </div>
+  </noscript>
+  {% if messages %}
+    <div class="messages mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show"
+             role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <div class="container">
+    BoxCRM · учёт товаров и клиентов · <a href="/admin/" class="link-muted">админка Django</a>
+  </div>
+</footer>
+
+<div id="flash-area" class="flash-area" role="status" aria-live="polite"></div>
+
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}?v={{ asset_version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

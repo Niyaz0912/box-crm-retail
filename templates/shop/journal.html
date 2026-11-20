@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Журнал — BoxCRM{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="h3 mb-1">Журнал операций</h1>
+    <p class="text-muted mb-0">Все приходы, продажи и списания по магазину</p>
+  </div>
+</div>
+
+<div class="filter-row mb-3">
+  {% for value, label in periods %}
+    <a class="filter-chip {% if period == value %}is-active{% endif %}"
+       href="?period={{ value }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 journal-table">
+      <thead>
+        <tr>
+          <th scope="col">Дата и время</th>
+          <th scope="col">Товар</th>
+          <th scope="col">Действие</th>
+          <th scope="col">Оплата</th>
+          <th scope="col" class="text-end">Количество</th>
+          <th scope="col">Кто сделал</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+          <tr>
+            <td class="text-nowrap text-muted" data-label="Дата и время">
+              {{ entry.created_at|date:"d.m.Y H:i" }}
+            </td>
+            <td data-label="Товар">{{ entry.product_name }}</td>
+            <td data-label="Действие">
+              <span class="op op--{{ entry.action }}">{{ entry.get_action_display }}</span>
+              {% if entry.reason %}
+                <span class="op-note">{{ entry.get_reason_display }}</span>
+              {% endif %}
+              {% if entry.responsible and entry.responsible != entry.user %}
+                <span class="op-note">Ответственный: {{ entry.responsible.get_username }}</span>
+              {% endif %}
+            </td>
+            <td data-label="Оплата">
+              {% if entry.payment_method %}
+                <span class="pay-tag pay-tag--{{ entry.payment_method }}">{{ entry.payment_label }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end qty" data-label="Количество">{{ entry.signed_quantity }}</td>
+            <td data-label="Кто сделал">
+              {% if entry.user %}
+                <span class="role-tag {% if entry.user.is_superuser %}role-tag--owner{% endif %}">
+                  {{ entry.user.get_username }}
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-5">За этот период операций нет.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
